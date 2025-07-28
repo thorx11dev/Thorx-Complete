@@ -5,11 +5,11 @@ import * as schema from "@shared/schema";
 
 neonConfig.webSocketConstructor = ws;
 
-// Use a development fallback if DATABASE_URL is not set
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/thorx_dev';
+// Use the provided Neon database URL
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_Sezcd6XsMt8D@ep-spring-paper-aeyaov4d.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require';
 
 if (!process.env.DATABASE_URL) {
-  console.warn('⚠️  DATABASE_URL not set. Using development fallback. Please set DATABASE_URL for production.');
+  console.warn('⚠️  DATABASE_URL not set. Using Neon database fallback.');
 }
 
 export const pool = new Pool({ connectionString: DATABASE_URL });
