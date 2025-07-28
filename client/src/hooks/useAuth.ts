@@ -101,7 +101,14 @@ export const useAuthState = () => {
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, password: string, rememberMe = false): Promise<boolean> => {
+  const login = async (email: string, password: string, rememberMe = false): Promise<{
+    success: boolean;
+    error?: string;
+    status?: string;
+    message?: string;
+    reason?: string;
+    contactAllowed?: boolean;
+  }> => {
     setIsLoading(true);
     
     try {
@@ -113,13 +120,25 @@ export const useAuthState = () => {
         body: JSON.stringify({ email, password }),
       });
       
-      if (!response.ok) {
-        const error = await response.json();
-        console.error('Login error:', error);
-        return false;
-      }
-      
       const data = await response.json();
+      
+      if (!response.ok) {
+        // Handle specific error cases
+        if (response.status === 403) {
+          return {
+            success: false,
+            status: data.status || 'banned',
+            message: data.message || 'Account access restricted',
+            reason: data.reason,
+            contactAllowed: data.contactAllowed
+          };
+        }
+        
+        return {
+          success: false,
+          error: data.error || 'Login failed'
+        };
+      }
       
       // Store authentication data
       localStorage.setItem('thorx_auth_token', data.token);
@@ -130,10 +149,13 @@ export const useAuthState = () => {
       }
       
       setUser(data.user);
-      return true;
+      return { success: true };
     } catch (error) {
       console.error('Login error:', error);
-      return false;
+      return {
+        success: false,
+        error: 'Network error occurred'
+      };
     } finally {
       setIsLoading(false);
     }
