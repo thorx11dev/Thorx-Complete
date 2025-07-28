@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertUserSchema, insertTaskSchema, insertPayoutSchema, insertContactMessageSchema } from "@shared/schema";
-import bcrypt from "bcrypt";
+import bcryptjs from "bcryptjs";
 import jwt from "jsonwebtoken";
 import multer from "multer";
 import path from "path";
@@ -104,7 +104,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Hash password
-      const hashedPassword = await bcrypt.hash(userData.password, 10);
+      const hashedPassword = await bcryptjs.hash(userData.password, 10);
 
       // Create user (initially unverified)
       const user = await storage.createUser({
@@ -174,7 +174,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Verify password
-      const isValidPassword = await bcrypt.compare(password, user.password);
+      const isValidPassword = await bcryptjs.compare(password, user.password);
 
       if (!isValidPassword) {
         return res.status(401).json({ error: "Invalid credentials" });
@@ -269,7 +269,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Verify password
-      const isValidPassword = await bcrypt.compare(password, teamMember.password);
+      const isValidPassword = await bcryptjs.compare(password, teamMember.password);
 
       if (!isValidPassword) {
         console.log("Invalid password for:", name);
@@ -444,7 +444,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create new user with hashed password
-      const hashedPassword = await bcrypt.hash(userData.password || 'defaultPassword123', 10);
+      const hashedPassword = await bcryptjs.hash(userData.password || 'defaultPassword123', 10);
       
       const user = await storage.createUser({
         username: userData.username,
@@ -816,7 +816,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Hash new password
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      const hashedPassword = await bcryptjs.hash(newPassword, 10);
 
       // Update password
       const member = await storage.updateTeamMemberPassword(memberId, hashedPassword);
