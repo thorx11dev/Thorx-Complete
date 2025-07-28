@@ -56,7 +56,7 @@ const AuthPage = () => {
   const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [, setLocation] = useLocation();
-  const { login, register } = useAuth();
+  const { login, register, isAuthenticated } = useAuth();
 
   // Get email from URL parameter
   const urlParams = new URLSearchParams(window.location.search);
@@ -133,6 +133,12 @@ const AuthPage = () => {
     }
   }, [notification]);
 
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      setLocation('/dashboard');
+    }
+  }, [isAuthenticated, setLocation]);
   const validateForm = (): boolean => {
     const newErrors: ValidationErrors = {};
 
@@ -191,36 +197,30 @@ const AuthPage = () => {
       let success = false;
 
       if (isLogin) {
-        const response = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            email: formData.email,
-            password: formData.password,
-            rememberMe: formData.rememberMe
-          })
-        });
-
-        const result = await response.json();
-
-        if (response.ok) {
-          localStorage.setItem('thorx_auth_token', result.token);
-          setUser(result.user);
-          navigate('/dashboard');
-        } else if (result.status === 'banned' || result.status === 'deactivated') {
-          // Handle banned/deactivated users
-          navigate('/account-status', { 
+        const loginResult = await login(formData.email, formData.password, formData.rememberMe);
+        
+        if (loginResult.success) {
+          setNotification({
+            type: 'success',
+            message: 'Login successful! Redirecting...'
+          });
+          setTimeout(() => {
+            setLocation('/dashboard');
+          }, 1000);
+        } else if (loginResult.status === 'banned' || loginResult.status === 'deactivated') {
+          setLocation('/account-status', { 
             state: { 
-              status: result.status,
-              message: result.message,
-              reason: result.reason,
-              contactAllowed: result.contactAllowed
+              status: loginResult.status,
+              message: loginResult.message,
+              reason: loginResult.reason,
+              contactAllowed: loginResult.contactAllowed
             }
           });
         } else {
-          setError(result.error || 'Login failed');
+          setNotification({
+            type: 'error',
+            message: loginResult.error || 'Login failed. Please check your credentials.'
+          });
         }
       } else {
         // Generate username from email (ensure minimum length of 3 characters)

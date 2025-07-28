@@ -48,6 +48,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<boolean>;
+  loginDetailed: (email: string, password: string, rememberMe?: boolean) => Promise<LoginResult>;
   register: (userData: RegisterData) => Promise<boolean>;
   logout: () => void;
   resetPassword: (email: string) => Promise<boolean>;
