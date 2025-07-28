@@ -5,11 +5,12 @@ import * as schema from "@shared/schema";
 
 neonConfig.webSocketConstructor = ws;
 
+// Use a development fallback if DATABASE_URL is not set
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/thorx_dev';
+
 if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
+  console.warn('⚠️  DATABASE_URL not set. Using development fallback. Please set DATABASE_URL for production.');
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+export const pool = new Pool({ connectionString: DATABASE_URL });
 export const db = drizzle({ client: pool, schema });
