@@ -1,0 +1,37 @@
+Let me tell you about Thorx, Thorx is a revenue sharing platform where multiple users can earn money by watching video ads and completing offers of Social Media Engagement and PTV( Paid to Visit). The networks and Thorx are connected to each other so that these networks provides all the inventory and payments for performing their tasks to users dashboard in Thorx and Users can easily withdraw it with the help of Jazzcash payment method. Since its well designed and its theme is cosmic, Thorx have a team which manages Thorx These are: 
+
+1. Aon Imran( CEO/Founder)
+2. Zohaib Nadeem( Social Media Ambassador)
+3. Zain Abbas( Marketing Maestro)
+4. Prof. Muhammad Jahangeer( Admin) 
+
+Thorx have 2 portals: 1 is User portal and 2 is Team portal, its pages are divided according to each member speciality. There are these pages in each portals:
+
+User Interface Structure
+
+Public pages: Landing, Updates, Features, Contact Us, Help canter, Blog and about page
+User portal: Dashboard, Work Portal (Ads/Social/Sites), Earnings, Payouts, Settings
+Team portal: Administrative interface with role-based access
+     Team Portal: 
+    Aon Imran: Dashboard, Linkage, User Care, Inbox, Team Hub, Digital Market
+   Zohaib Nadeem:  Dashboard, Linkage, User Care, Inbox, Digital Market
+   Zain Abbas: Dashboard, Linkage, User Care, Inbox
+   Admin: Dashboard, Linkage, User Care, Inbox
+
+Technical Architecture
+
+Complete frontend stack (React, TypeScript, Tailwind, Framer Motion, Three.js)
+Backend infrastructure (Node.js, Express, PostgreSQL, Drizzle ORM)
+Authentication and security systems
+
+Key Features
+Multi-category earning system (Ads Cosmos, Social Cosmos, Site Cosmos)
+JazzCash payment integration with 13% platform fee
+Real-time analytics and performance tracking
+Team collaboration tools with granular permissions
+Comprehensive user management and moderation
+
+Design System
+Cosmic-inspired theme with sophisticated animations
+Mobile-first responsive design
+Advanced 3D graphics and particle effects
