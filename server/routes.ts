@@ -485,36 +485,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Google Sheets Export with structured data
   app.post("/api/team/users/export-google-sheets", authenticateTeamMember, async (req: any, res) => {
     try {
-      const { userIds, sheetId, exportData } = req.body;
+      const { userIds, exportData } = req.body;
       
       if (!userIds || !Array.isArray(userIds)) {
         return res.status(400).json({ error: 'User IDs are required' });
       }
 
-      // Get users data
+      // Get users data for export
       const users = await storage.getUsersForExport(userIds);
       
-      // In a real implementation, you would use Google Sheets API
-      // For now, we'll create a properly structured response
+      // Structure data for Google Sheets
       const structuredData = {
-        spreadsheetId: sheetId || 'demo-sheet-id',
-        range: 'A1:J' + (users.length + 1),
+        spreadsheetId: 'demo-sheet-id',
+        range: 'A1:I' + (users.length + 1),
         values: [
-          exportData.headers,
-          ...exportData.data
+          ['ID', 'Name', 'Email', 'Username', 'Total Earnings', 'Status', 'Last Seen', 'Actions', 'Created At'],
+          ...users.map(user => [
+            user.id,
+            `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
+            user.email,
+            user.username,
+            user.totalEarnings || '0.00',
+            user.isActive && !user.isBanned ? 'Active' : user.isBanned ? 'Banned' : 'Inactive',
+            'Recently Active', // This would come from actual last seen data
+            '0', // This would come from actual actions count
+            new Date(user.createdAt).toLocaleDateString()
+          ])
         ]
       };
 
-      // Simulate successful Google Sheets API call
-      const sheetUrl = `https://docs.google.com/spreadsheets/d/${sheetId || 'demo-sheet-id'}/edit#gid=0`;
+      // Simulate Google Sheets URL (in production, this would be the actual Google Sheets API response)
+      const sheetUrl = `https://docs.google.com/spreadsheets/d/demo-sheet-id/edit#gid=0`;
       
-      // Log the export operation
-      console.log('Google Sheets export:', {
-        userCount: users.length,
-        sheetId: sheetId,
-        timestamp: new Date().toISOString()
-      });
-
       res.json({ 
         success: true, 
         sheetUrl,
