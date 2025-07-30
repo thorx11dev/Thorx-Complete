@@ -94,6 +94,49 @@ const UserCarePage = () => {
   const [showImportModal, setShowImportModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Floating Card Feature State
+  const [showFloatingCard, setShowFloatingCard] = useState(false);
+  const [floatingCardPosition, setFloatingCardPosition] = useState({ x: 100, y: 100 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
+  // Floating Card Functions
+  const toggleFloatingCard = () => {
+    setShowFloatingCard(!showFloatingCard);
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    setDragOffset({
+      x: e.clientX - floatingCardPosition.x,
+      y: e.clientY - floatingCardPosition.y
+    });
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (isDragging) {
+      setFloatingCardPosition({
+        x: e.clientX - dragOffset.x,
+        y: e.clientY - dragOffset.y
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, dragOffset]);
+
   useEffect(() => {
     loadUsers();
     loadGoogleSheetsAuth();
@@ -159,6 +202,7 @@ const UserCarePage = () => {
   const executeBulkOperation = async () => {
     if (!pendingOperation) return;
 
+    setLoading(true);
     try {
       const token = localStorage.getItem('thorx_team_auth_token');
       const response = await fetch('/api/team/users/bulk', {
@@ -177,7 +221,7 @@ const UserCarePage = () => {
       if (response.ok) {
         const result = await response.json();
         addNotification('success', 'Success', `${pendingOperation.operation} operation completed for ${pendingOperation.userIds.length} users`);
-        loadUsers();
+        await loadUsers(); // Ensure users are reloaded
         setSelectedUsers([]);
       } else {
         const error = await response.json();
@@ -187,6 +231,7 @@ const UserCarePage = () => {
       console.error('Bulk operation error:', error);
       addNotification('error', 'Error', 'Network error occurred');
     } finally {
+      setLoading(false);
       setShowReasonModal(false);
       setPendingOperation(null);
       setBulkReason('');
@@ -227,12 +272,12 @@ const UserCarePage = () => {
     if (!googleSheetsAuth.isLinked) {
       setShowGoogleSheetsModal(true);
     } else {
-      exportToGoogleSheets();
+      exportToGoogleSheetsWithData();
     }
     setShowExportOptions(false);
   };
 
-  const linkGoogleSheetsAccount = () => {
+  const linkGoogleSheetsAccount = async () => {
     // Simulate Google OAuth flow
     const mockAuth = {
       isLinked: true,
@@ -245,20 +290,70 @@ const UserCarePage = () => {
     setShowGoogleSheetsModal(false);
     
     addNotification('success', 'Account Linked', 'Google Sheets account linked successfully');
-    exportToGoogleSheets();
+    await exportToGoogleSheetsWithData();
   };
 
-  const exportToGoogleSheets = () => {
-    const selectedUserData = users.filter(user => selectedUsers.includes(user.id));
-    
-    // Create Google Sheets URL with data
-    const sheetUrl = `https://docs.google.com/spreadsheets/d/${googleSheetsAuth.sheetId}/edit`;
-    
-    // In a real implementation, you would use Google Sheets API
-    // For now, we'll open the sheet and show success message
-    window.open(sheetUrl, '_blank');
-    
-    addNotification('success', 'Export to Google Sheets', `Exported ${selectedUserData.length} users to Google Sheets`);
+  const exportToGoogleSheetsWithData = async () => {
+    try {
+      setLoading(true);
+      const selectedUserData = users.filter(user => selectedUsers.includes(user.id));
+      
+      if (selectedUserData.length === 0) {
+        addNotification('error', 'No Data', 'No users selected for export');
+        return;
+      }
+
+      // Prepare structured data for Google Sheets
+      const exportData = {
+        headers: ['ID', 'Name', 'Email', 'Username', 'Total Earnings', 'Status', 'Last Seen', 'Actions', 'Created At', 'Ban Reason'],
+        data: selectedUserData.map(user => [
+          user.id,
+          `${user.firstName} ${user.lastName}`,
+          user.email,
+          user.username,
+          user.totalEarnings,
+          user.isBanned ? 'Banned' : user.isActive ? 'Active' : 'Inactive',
+          formatLastSeen(user.lastSeen),
+          user.actions || 0,
+          new Date(user.createdAt).toLocaleDateString(),
+          user.banReason || 'N/A'
+        ])
+      };
+
+      // Send data to backend for Google Sheets export
+      const token = localStorage.getItem('thorx_team_auth_token');
+      const response = await fetch('/api/team/users/export-google-sheets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          userIds: selectedUsers,
+          sheetId: googleSheetsAuth.sheetId,
+          exportData
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        // Open Google Sheets with the exported data
+        const sheetUrl = result.sheetUrl || `https://docs.google.com/spreadsheets/d/${googleSheetsAuth.sheetId}/edit`;
+        window.open(sheetUrl, '_blank');
+        
+        addNotification('success', 'Export Successful', `Exported ${selectedUserData.length} users to Google Sheets`);
+        setSelectedUsers([]);
+      } else {
+        const error = await response.json();
+        addNotification('error', 'Export Failed', error.message || 'Failed to export to Google Sheets');
+      }
+    } catch (error) {
+      console.error('Google Sheets export error:', error);
+      addNotification('error', 'Export Error', 'Network error occurred during export');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -325,14 +420,22 @@ const UserCarePage = () => {
   };
 
   const handleUserAction = async (userId: number, action: string) => {
-    if (action === 'ban' || action === 'unban') {
-      setPendingOperation({ operation: action, userIds: [userId] });
-      setShowReasonModal(true);
-    } else if (action === 'export') {
-      setSelectedUsers([userId]);
-      setShowExportOptions(true);
+    setLoading(true);
+    try {
+      if (action === 'ban' || action === 'unban') {
+        setPendingOperation({ operation: action, userIds: [userId] });
+        setShowReasonModal(true);
+      } else if (action === 'export') {
+        setSelectedUsers([userId]);
+        setShowExportOptions(true);
+      }
+    } catch (error) {
+      console.error('User action error:', error);
+      addNotification('error', 'Action Failed', 'Failed to perform user action');
+    } finally {
+      setLoading(false);
+      setShowDropdown(null);
     }
-    setShowDropdown(null);
   };
 
   const handleEditUser = (user: User) => {
@@ -469,10 +572,18 @@ const UserCarePage = () => {
               <div className="flex items-center space-x-3">
                 <button
                   onClick={loadUsers}
+                  disabled={loading}
                   className="flex items-center space-x-2 px-4 py-2 bg-[#3D619B] hover:bg-[#3D619B]/80 text-white rounded-lg transition-colors"
                 >
-                  <RefreshCw className="w-4 h-4" />
+                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                   <span>Refresh</span>
+                </button>
+                <button
+                  onClick={toggleFloatingCard}
+                  className="flex items-center space-x-2 px-4 py-2 bg-[#EF4B4C] hover:bg-[#EF4B4C]/80 text-white rounded-lg transition-colors"
+                >
+                  <Eye className="w-4 h-4" />
+                  <span>{showFloatingCard ? 'Hide' : 'Show'} Quick View</span>
                 </button>
                 <div className="text-right">
                   <div className="text-sm text-[#E9E9EB]/60">Total Users</div>
@@ -1106,6 +1217,70 @@ const UserCarePage = () => {
                   </button>
                 </div>
               </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Floating Card Feature */}
+        <AnimatePresence>
+          {showFloatingCard && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              style={{
+                position: 'fixed',
+                left: floatingCardPosition.x,
+                top: floatingCardPosition.y,
+                zIndex: 1000
+              }}
+              className="bg-[#43506C] border border-[#3D619B]/30 rounded-xl p-4 shadow-2xl backdrop-blur-sm"
+              onMouseDown={handleMouseDown}
+            >
+              <div className="cursor-move">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-[#E9E9EB]">Quick Stats</h4>
+                  <button
+                    onClick={toggleFloatingCard}
+                    className="text-[#E9E9EB]/60 hover:text-[#E9E9EB] transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-[#E9E9EB]/60">Total Users:</span>
+                    <span className="text-[#E9E9EB] font-medium">{users.length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#E9E9EB]/60">Selected:</span>
+                    <span className="text-[#E9E9EB] font-medium">{selectedUsers.length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#E9E9EB]/60">Active:</span>
+                    <span className="text-green-400 font-medium">
+                      {users.filter(u => u.isActive && !u.isBanned).length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#E9E9EB]/60">Banned:</span>
+                    <span className="text-red-400 font-medium">
+                      {users.filter(u => u.isBanned).length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#E9E9EB]/60">Filtered:</span>
+                    <span className="text-blue-400 font-medium">{filteredUsers.length}</span>
+                  </div>
+                </div>
+                
+                <div className="mt-3 pt-3 border-t border-[#3D619B]/30">
+                  <div className="text-xs text-[#E9E9EB]/60">
+                    Drag to move • Click X to close
+                  </div>
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
