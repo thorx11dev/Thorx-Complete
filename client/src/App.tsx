@@ -30,6 +30,7 @@ import LinkagePage from './pages/LinkagePage';
 import TeamHubPage from './pages/TeamHubPage';
 import DigitalMarketPage from './pages/DigitalMarketPage';
 import AccountStatusPage from './pages/AccountStatusPage';
+import BannedUserPage from './pages/BannedUserPage';
 
 function App() {
   return (
@@ -42,6 +43,7 @@ function App() {
                 <Route path="/" component={LandingPage} />
                 <Route path="/auth" component={AuthPage} />
                 <Route path="/account-status" component={AccountStatusPage} />
+                <Route path="/banned" component={BannedUserPage} />
                 <Route path="/login" component={AuthPage} />
                 <Route path="/register" component={AuthPage} />
 

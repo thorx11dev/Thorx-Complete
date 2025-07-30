@@ -372,28 +372,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Bulk user operations
+  // Enhanced bulk operations with proper reason handling
   app.post("/api/team/users/bulk", authenticateTeamMember, async (req: any, res) => {
     try {
-      const { operation, userIds, data } = req.body;
+      const { operation, userIds, reason } = req.body;
+      const teamMemberId = req.teamMember.teamMemberId;
 
-      if (!operation || !userIds || !Array.isArray(userIds)) {
-        return res.status(400).json({ error: "Invalid bulk operation data" });
+      if (!operation || !userIds || !Array.isArray(userIds) || userIds.length === 0) {
+        return res.status(400).json({ error: 'Invalid operation or user IDs' });
+      }
+
+      if ((operation === 'ban' || operation === 'unban') && !reason?.trim()) {
+        return res.status(400).json({ error: 'Reason is required for ban/unban operations' });
       }
 
       let result;
       switch (operation) {
         case 'ban':
-          if (!data?.reason) {
-            return res.status(400).json({ error: "Ban reason is required" });
-          }
-          result = await storage.bulkBanUsers(userIds, data.reason, req.teamMember.teamMemberId);
+          result = await storage.bulkBanUsers(userIds, reason, teamMemberId);
           break;
         case 'unban':
-          if (!data?.reason) {
-            return res.status(400).json({ error: "Unban reason is required" });
-          }
-          result = await storage.bulkUnbanUsers(userIds, data.reason, req.teamMember.teamMemberId);
+          result = await storage.bulkUnbanUsers(userIds, reason, teamMemberId);
           break;
         case 'activate':
           result = await storage.bulkActivateUsers(userIds);
@@ -405,13 +404,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
           result = await storage.exportUsers(userIds);
           break;
         default:
-          return res.status(400).json({ error: "Invalid operation" });
+          return res.status(400).json({ error: 'Invalid operation' });
       }
 
-      res.json({ message: `Bulk ${operation} completed successfully`, result });
+      res.json({ success: true, affectedUsers: result.length });
     } catch (error) {
-      console.error("Bulk operation error:", error);
-      res.status(500).json({ error: "Internal server error" });
+      console.error('Error executing bulk operation:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // User edit endpoint
+  app.put("/api/team/users/:id", authenticateTeamMember, async (req: any, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const updates = req.body;
+
+      if (isNaN(userId)) {
+        return res.status(400).json({ error: 'Invalid user ID' });
+      }
+
+      await storage.updateUser(userId, updates);
+      res.json({ success: true, message: 'User updated successfully' });
+    } catch (error) {
+      console.error('Error updating user:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Google Sheets export endpoint
+  app.post("/api/team/users/export-sheets", authenticateTeamMember, async (req: any, res) => {
+    try {
+      const { userIds, sheetId } = req.body;
+      
+      if (!userIds || !Array.isArray(userIds)) {
+        return res.status(400).json({ error: 'User IDs are required' });
+      }
+
+      const users = await storage.getUsersForExport(userIds);
+      
+      // In a real implementation, you would use Google Sheets API
+      // For now, we'll return the data structure
+      const sheetsData = {
+        range: 'A1:J' + (users.length + 1),
+        values: [
+          ['ID', 'Username', 'Email', 'First Name', 'Last Name', 'Total Earnings', 'Status', 'Last Seen', 'Actions', 'Created At'],
+          ...users.map(user => [
+            user.id,
+            user.username,
+            user.email,
+            user.firstName || '',
+            user.lastName || '',
+            user.totalEarnings || '0.00',
+            user.isActive ? 'Active' : 'Inactive',
+            user.lastSeen || 'Never',
+            user.actions || 0,
+            user.createdAt
+          ])
+        ]
+      };
+
+      res.json({ 
+        success: true, 
+        data: sheetsData,
+        message: `Prepared ${users.length} users for Google Sheets export` 
+      });
+    } catch (error) {
+      console.error('Google Sheets export error:', error);
+      res.status(500).json({ error: 'Failed to prepare export data' });
     }
   });
 
