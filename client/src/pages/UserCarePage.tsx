@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useTeamAuth } from '@/hooks/useTeamAuth';
 import { 
   Users, 
@@ -124,6 +124,16 @@ const UserCarePage = () => {
       return matchesSearch && matchesFilter;
     });
   }, [users, searchTerm, filterType]);
+
+  // Floating card stats
+  const floatingCardStats = useMemo(() => ({
+    total: users.length,
+    selected: selectedUsers.length,
+    active: users.filter(u => u.isActive && !u.isBanned).length,
+    banned: users.filter(u => u.isBanned).length,
+    filtered: filteredUsers.length
+  }), [users, selectedUsers, filteredUsers]);
+
   const dragRef = useRef<HTMLDivElement>(null);
   const dragOffset = useRef({ x: 0, y: 0 });
 
@@ -164,6 +174,18 @@ const UserCarePage = () => {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
       
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging]);
+
+  useEffect(() => {
+    loadUsers();
+    loadGoogleSheetsAuth();
+  }, []);
+
   const loadUsers = async () => {
     setLoading(true);
     try {
@@ -489,22 +511,6 @@ const UserCarePage = () => {
       addNotification('error', 'Update Failed', 'Failed to update user');
     }
   };
-
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = 
-      user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.lastName.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesFilter = 
-      filterType === 'all' || 
-      (filterType === 'active' && user.isActive && !user.isBanned) ||
-      (filterType === 'banned' && user.isBanned) ||
-      (filterType === 'inactive' && !user.isActive);
-    
-    return matchesSearch && matchesFilter;
-  });
 
   const formatLastSeen = (dateString?: string) => {
     if (!dateString) return 'Never';
