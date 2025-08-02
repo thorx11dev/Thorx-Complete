@@ -29,7 +29,11 @@ import {
   FileSpreadsheet,
   Link as LinkIcon,
   Unlink,
-  Check
+  Check,
+  Layers,
+  Grid,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import TeamSidebar from '@/components/TeamSidebar';
 import { CosmicEntrance, CosmicModule, CosmicParticles } from '@/components/CosmicAdvancedLayout';
@@ -96,30 +100,38 @@ const UserCarePage = () => {
 
   // Floating Card Feature State
   const [showFloatingCard, setShowFloatingCard] = useState(false);
-  const [floatingCardPosition, setFloatingCardPosition] = useState({ x: 100, y: 100 });
+  const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
+  const [cardPosition, setCardPosition] = useState({ x: 20, y: 100 });
   const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<HTMLDivElement>(null);
+  const dragOffset = useRef({ x: 0, y: 0 });
 
-  // Floating Card Functions
-  const toggleFloatingCard = () => {
-    setShowFloatingCard(!showFloatingCard);
-  };
-
+  // Floating card drag functionality
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (!dragRef.current) return;
+    
     setIsDragging(true);
-    setDragOffset({
-      x: e.clientX - floatingCardPosition.x,
-      y: e.clientY - floatingCardPosition.y
-    });
+    const rect = dragRef.current.getBoundingClientRect();
+    dragOffset.current = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
   };
 
   const handleMouseMove = (e: MouseEvent) => {
-    if (isDragging) {
-      setFloatingCardPosition({
-        x: e.clientX - dragOffset.x,
-        y: e.clientY - dragOffset.y
-      });
-    }
+    if (!isDragging) return;
+    
+    const newX = e.clientX - dragOffset.current.x;
+    const newY = e.clientY - dragOffset.current.y;
+    
+    // Keep card within viewport bounds
+    const maxX = window.innerWidth - 320;
+    const maxY = window.innerHeight - 200;
+    
+    setCardPosition({
+      x: Math.max(0, Math.min(newX, maxX)),
+      y: Math.max(0, Math.min(newY, maxY))
+    });
   };
 
   const handleMouseUp = () => {
@@ -130,12 +142,22 @@ const UserCarePage = () => {
     if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
+      
       return () => {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
       };
     }
-  }, [isDragging, dragOffset]);
+  }, [isDragging]);
+
+  // Calculate real-time stats for floating card
+  const floatingCardStats = {
+    total: users.length,
+    selected: selectedUsers.length,
+    active: users.filter(user => user.isActive && !user.isBanned).length,
+    banned: users.filter(user => user.isBanned).length,
+    filtered: filteredUsers.length
+  };
 
   useEffect(() => {
     loadUsers();
@@ -570,20 +592,55 @@ const UserCarePage = () => {
                 </div>
               </div>
               <div className="flex items-center space-x-3">
+                {/* View Mode Toggle */}
+                <div className="flex items-center bg-slate-800/50 rounded-lg p-1">
+                  <button
+                    onClick={() => setViewMode('table')}
+                    className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                      viewMode === 'table'
+                        ? 'bg-[#3D619B] text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Grid className="w-4 h-4" />
+                    <span>Table</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setViewMode('card');
+                      setShowFloatingCard(true);
+                    }}
+                    className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                      viewMode === 'card'
+                        ? 'bg-[#EF4B4C] text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Layers className="w-4 h-4" />
+                    <span>Cards</span>
+                  </button>
+                </div>
+
+                {/* Floating Card Toggle */}
+                <button
+                  onClick={() => setShowFloatingCard(!showFloatingCard)}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 border ${
+                    showFloatingCard
+                      ? 'bg-[#EF4B4C]/20 text-[#EF4B4C] border-[#EF4B4C]/30'
+                      : 'bg-slate-800/50 text-slate-400 border-slate-700 hover:text-slate-200 hover:border-slate-600'
+                  }`}
+                >
+                  {showFloatingCard ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                  <span>{showFloatingCard ? 'Hide Quick View' : 'Show Quick View'}</span>
+                </button>
+
                 <button
                   onClick={loadUsers}
                   disabled={loading}
-                  className="flex items-center space-x-2 px-4 py-2 bg-[#3D619B] hover:bg-[#3D619B]/80 text-white rounded-lg transition-colors"
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors"
                 >
                   <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                   <span>Refresh</span>
-                </button>
-                <button
-                  onClick={toggleFloatingCard}
-                  className="flex items-center space-x-2 px-4 py-2 bg-[#EF4B4C] hover:bg-[#EF4B4C]/80 text-white rounded-lg transition-colors"
-                >
-                  <Eye className="w-4 h-4" />
-                  <span>{showFloatingCard ? 'Hide' : 'Show'} Quick View</span>
                 </button>
                 <div className="text-right">
                   <div className="text-sm text-[#E9E9EB]/60">Total Users</div>
@@ -1221,66 +1278,91 @@ const UserCarePage = () => {
           )}
         </AnimatePresence>
 
-        {/* Floating Card Feature */}
+        {/* Floating Quick View Card */}
         <AnimatePresence>
           {showFloatingCard && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
+              ref={dragRef}
+              initial={{ opacity: 0, scale: 0.8, x: cardPosition.x, y: cardPosition.y }}
+              animate={{ opacity: 1, scale: 1, x: cardPosition.x, y: cardPosition.y }}
               exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.3, type: "spring" }}
+              className="fixed z-50 w-80 bg-[#43506C]/95 backdrop-blur-sm border border-[#3D619B]/30 rounded-xl shadow-2xl"
               style={{
-                position: 'fixed',
-                left: floatingCardPosition.x,
-                top: floatingCardPosition.y,
-                zIndex: 1000
+                left: cardPosition.x,
+                top: cardPosition.y,
+                cursor: isDragging ? 'grabbing' : 'grab'
               }}
-              className="bg-[#43506C] border border-[#3D619B]/30 rounded-xl p-4 shadow-2xl backdrop-blur-sm"
-              onMouseDown={handleMouseDown}
             >
-              <div className="cursor-move">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-[#E9E9EB]">Quick Stats</h4>
-                  <button
-                    onClick={toggleFloatingCard}
-                    className="text-[#E9E9EB]/60 hover:text-[#E9E9EB] transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+              {/* Drag Handle */}
+              <div
+                onMouseDown={handleMouseDown}
+                className="flex items-center justify-between p-4 border-b border-[#3D619B]/30 cursor-grab active:cursor-grabbing"
+              >
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-[#EF4B4C] rounded-full animate-pulse"></div>
+                  <h4 className="font-semibold text-[#E9E9EB]">Quick View</h4>
                 </div>
-                
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-[#E9E9EB]/60">Total Users:</span>
-                    <span className="text-[#E9E9EB] font-medium">{users.length}</span>
+                <button
+                  onClick={() => setShowFloatingCard(false)}
+                  className="p-1 hover:bg-[#43506C]/40 rounded transition-colors"
+                >
+                  <X className="w-4 h-4 text-[#E9E9EB]/60" />
+                </button>
+              </div>
+
+              {/* Stats Content */}
+              <div className="p-4 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-[#E9E9EB]">{floatingCardStats.total}</div>
+                    <div className="text-xs text-[#E9E9EB]/60">Total Users</div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#E9E9EB]/60">Selected:</span>
-                    <span className="text-[#E9E9EB] font-medium">{selectedUsers.length}</span>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-[#3D619B]">{floatingCardStats.selected}</div>
+                    <div className="text-xs text-[#E9E9EB]/60">Selected</div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#E9E9EB]/60">Active:</span>
-                    <span className="text-green-400 font-medium">
-                      {users.filter(u => u.isActive && !u.isBanned).length}
-                    </span>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-400">{floatingCardStats.active}</div>
+                    <div className="text-xs text-[#E9E9EB]/60">Active</div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#E9E9EB]/60">Banned:</span>
-                    <span className="text-red-400 font-medium">
-                      {users.filter(u => u.isBanned).length}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#E9E9EB]/60">Filtered:</span>
-                    <span className="text-blue-400 font-medium">{filteredUsers.length}</span>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-red-400">{floatingCardStats.banned}</div>
+                    <div className="text-xs text-[#E9E9EB]/60">Banned</div>
                   </div>
                 </div>
-                
-                <div className="mt-3 pt-3 border-t border-[#3D619B]/30">
-                  <div className="text-xs text-[#E9E9EB]/60">
-                    Drag to move • Click X to close
+
+                {/* Filter Info */}
+                <div className="pt-3 border-t border-[#3D619B]/30">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-[#E9E9EB]/80">Filtered Results:</span>
+                    <span className="text-sm font-semibold text-[#EF4B4C]">{floatingCardStats.filtered}</span>
+                  </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="pt-3 border-t border-[#3D619B]/30">
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => setShowBulkOps(true)}
+                      disabled={selectedUsers.length === 0}
+                      className="flex-1 px-3 py-2 bg-[#EF4B4C] hover:bg-[#EF4B4C]/80 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs font-medium transition-colors"
+                    >
+                      Bulk Ops
+                    </button>
+                    <button
+                      onClick={() => setViewMode(viewMode === 'table' ? 'card' : 'table')}
+                      className="flex-1 px-3 py-2 bg-[#3D619B] hover:bg-[#3D619B]/80 text-white rounded-lg text-xs font-medium transition-colors"
+                    >
+                      {viewMode === 'table' ? 'Card View' : 'Table View'}
+                    </button>
                   </div>
                 </div>
               </div>
+
+              {/* Cosmic decoration */}
+              <div className="absolute bottom-2 right-2 w-2 h-2 bg-[#3D619B]/40 rounded-full animate-pulse"></div>
+              <div className="absolute bottom-3 right-3 w-1 h-1 bg-[#EF4B4C]/30 rounded-full animate-pulse" style={{ animationDelay: '0.5s' }}></div>
             </motion.div>
           )}
         </AnimatePresence>
