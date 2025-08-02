@@ -103,6 +103,27 @@ const UserCarePage = () => {
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
   const [cardPosition, setCardPosition] = useState({ x: 20, y: 100 });
   const [isDragging, setIsDragging] = useState(false);
+
+  // Initialize filteredUsers early to prevent temporal dead zone error
+  const filteredUsers = useMemo(() => {
+    if (!users) return [];
+    
+    return users.filter(user => {
+      const matchesSearch = 
+        user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (user.firstName && user.firstName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (user.lastName && user.lastName.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      const matchesFilter = 
+        filterType === 'all' || 
+        (filterType === 'active' && user.isActive && !user.isBanned) ||
+        (filterType === 'inactive' && !user.isActive) ||
+        (filterType === 'banned' && user.isBanned);
+      
+      return matchesSearch && matchesFilter;
+    });
+  }, [users, searchTerm, filterType]);
   const dragRef = useRef<HTMLDivElement>(null);
   const dragOffset = useRef({ x: 0, y: 0 });
 
@@ -143,27 +164,6 @@ const UserCarePage = () => {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
       
-      return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-      };
-    }
-  }, [isDragging]);
-
-  // Calculate real-time stats for floating card
-  const floatingCardStats = {
-    total: users.length,
-    selected: selectedUsers.length,
-    active: users.filter(user => user.isActive && !user.isBanned).length,
-    banned: users.filter(user => user.isBanned).length,
-    filtered: filteredUsers.length
-  };
-
-  useEffect(() => {
-    loadUsers();
-    loadGoogleSheetsAuth();
-  }, []);
-
   const loadUsers = async () => {
     setLoading(true);
     try {
