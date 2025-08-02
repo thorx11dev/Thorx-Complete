@@ -483,7 +483,6 @@ export class DatabaseStorage implements IStorage {
           .set({ 
             isBanned: true,
             banReason: reason,
-            bannedBy: teamMemberId,
             bannedAt: new Date(),
             updatedAt: new Date()
           })
@@ -521,7 +520,6 @@ export class DatabaseStorage implements IStorage {
           .set({ 
             isBanned: false,
             banReason: null,
-            bannedBy: null,
             bannedAt: null,
             updatedAt: new Date()
           })
