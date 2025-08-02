@@ -407,14 +407,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: 'Invalid operation' });
       }
 
-      // Force a small delay to ensure database operations complete
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      res.json({ 
-        success: true, 
-        affectedUsers: Array.isArray(result) ? result.length : result,
-        message: `Successfully ${operation}ed ${userIds.length} user(s)`
-      });
+      res.json({ success: true, affectedUsers: result.length });
     } catch (error) {
       console.error('Error executing bulk operation:', error);
       res.status(500).json({ error: 'Internal server error' });
@@ -479,53 +472,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Google Sheets export error:', error);
       res.status(500).json({ error: 'Failed to prepare export data' });
-    }
-  });
-
-  // Google Sheets Export with structured data
-  app.post("/api/team/users/export-google-sheets", authenticateTeamMember, async (req: any, res) => {
-    try {
-      const { userIds, exportData } = req.body;
-      
-      if (!userIds || !Array.isArray(userIds)) {
-        return res.status(400).json({ error: 'User IDs are required' });
-      }
-
-      // Get users data for export
-      const users = await storage.getUsersForExport(userIds);
-      
-      // Structure data for Google Sheets
-      const structuredData = {
-        spreadsheetId: 'demo-sheet-id',
-        range: 'A1:I' + (users.length + 1),
-        values: [
-          ['ID', 'Name', 'Email', 'Username', 'Total Earnings', 'Status', 'Last Seen', 'Actions', 'Created At'],
-          ...users.map(user => [
-            user.id,
-            `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
-            user.email,
-            user.username,
-            user.totalEarnings || '0.00',
-            user.isActive && !user.isBanned ? 'Active' : user.isBanned ? 'Banned' : 'Inactive',
-            'Recently Active', // This would come from actual last seen data
-            '0', // This would come from actual actions count
-            new Date(user.createdAt).toLocaleDateString()
-          ])
-        ]
-      };
-
-      // Simulate Google Sheets URL (in production, this would be the actual Google Sheets API response)
-      const sheetUrl = `https://docs.google.com/spreadsheets/d/demo-sheet-id/edit#gid=0`;
-      
-      res.json({ 
-        success: true, 
-        sheetUrl,
-        data: structuredData,
-        message: `Successfully prepared ${users.length} users for Google Sheets export` 
-      });
-    } catch (error) {
-      console.error('Google Sheets export error:', error);
-      res.status(500).json({ error: 'Failed to export to Google Sheets' });
     }
   });
 
@@ -625,14 +571,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Update user ban status
-      const user = await storage.banUser(userId, reason, req.teamMember.teamMemberId);
+      const user = await storage.updateUserBanStatus(userId, true, reason);
 
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
 
-      // Force a small delay to ensure database operations complete
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Create ban report
+      await storage.createBanReport({
+        userId,
+        teamMemberId: req.teamMember.teamMemberId,
+        reason,
+        action: 'ban'
+      });
 
       res.json({ message: "User banned successfully", user });
     } catch (error) {
@@ -651,14 +602,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Update user ban status
-      const user = await storage.unbanUser(userId, reason, req.teamMember.teamMemberId);
+      const user = await storage.updateUserBanStatus(userId, false);
 
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
 
-      // Force a small delay to ensure database operations complete
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Create unban report
+      await storage.createBanReport({
+        userId,
+        teamMemberId: req.teamMember.teamMemberId,
+        reason,
+        action: 'unban'
+      });
 
       res.json({ message: "User unbanned successfully", user });
     } catch (error) {

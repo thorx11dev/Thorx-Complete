@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTeamAuth } from '@/hooks/useTeamAuth';
 import { 
   Users, 
@@ -29,11 +29,7 @@ import {
   FileSpreadsheet,
   Link as LinkIcon,
   Unlink,
-  Check,
-  Layers,
-  Grid,
-  Maximize2,
-  Minimize2
+  Check
 } from 'lucide-react';
 import TeamSidebar from '@/components/TeamSidebar';
 import { CosmicEntrance, CosmicModule, CosmicParticles } from '@/components/CosmicAdvancedLayout';
@@ -97,89 +93,6 @@ const UserCarePage = () => {
   const [importedData, setImportedData] = useState<User[]>([]);
   const [showImportModal, setShowImportModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Floating Card Feature State
-  const [showFloatingCard, setShowFloatingCard] = useState(false);
-  const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
-  const [cardPosition, setCardPosition] = useState({ x: 20, y: 100 });
-  const [isDragging, setIsDragging] = useState(false);
-
-  // Initialize filteredUsers early to prevent temporal dead zone error
-  const filteredUsers = useMemo(() => {
-    if (!users) return [];
-    
-    return users.filter(user => {
-      const matchesSearch = 
-        user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (user.firstName && user.firstName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (user.lastName && user.lastName.toLowerCase().includes(searchTerm.toLowerCase()));
-      
-      const matchesFilter = 
-        filterType === 'all' || 
-        (filterType === 'active' && user.isActive && !user.isBanned) ||
-        (filterType === 'inactive' && !user.isActive) ||
-        (filterType === 'banned' && user.isBanned);
-      
-      return matchesSearch && matchesFilter;
-    });
-  }, [users, searchTerm, filterType]);
-
-  // Floating card stats
-  const floatingCardStats = useMemo(() => ({
-    total: users.length,
-    selected: selectedUsers.length,
-    active: users.filter(u => u.isActive && !u.isBanned).length,
-    banned: users.filter(u => u.isBanned).length,
-    filtered: filteredUsers.length
-  }), [users, selectedUsers, filteredUsers]);
-
-  const dragRef = useRef<HTMLDivElement>(null);
-  const dragOffset = useRef({ x: 0, y: 0 });
-
-  // Floating card drag functionality
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!dragRef.current) return;
-    
-    setIsDragging(true);
-    const rect = dragRef.current.getBoundingClientRect();
-    dragOffset.current = {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
-    };
-  };
-
-  const handleMouseMove = (e: MouseEvent) => {
-    if (!isDragging) return;
-    
-    const newX = e.clientX - dragOffset.current.x;
-    const newY = e.clientY - dragOffset.current.y;
-    
-    // Keep card within viewport bounds
-    const maxX = window.innerWidth - 320;
-    const maxY = window.innerHeight - 200;
-    
-    setCardPosition({
-      x: Math.max(0, Math.min(newX, maxX)),
-      y: Math.max(0, Math.min(newY, maxY))
-    });
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
-  useEffect(() => {
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      
-      return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-      };
-    }
-  }, [isDragging]);
 
   useEffect(() => {
     loadUsers();
@@ -246,7 +159,6 @@ const UserCarePage = () => {
   const executeBulkOperation = async () => {
     if (!pendingOperation) return;
 
-    setLoading(true);
     try {
       const token = localStorage.getItem('thorx_team_auth_token');
       const response = await fetch('/api/team/users/bulk', {
@@ -265,7 +177,7 @@ const UserCarePage = () => {
       if (response.ok) {
         const result = await response.json();
         addNotification('success', 'Success', `${pendingOperation.operation} operation completed for ${pendingOperation.userIds.length} users`);
-        await loadUsers(); // Ensure users are reloaded
+        loadUsers();
         setSelectedUsers([]);
       } else {
         const error = await response.json();
@@ -275,7 +187,6 @@ const UserCarePage = () => {
       console.error('Bulk operation error:', error);
       addNotification('error', 'Error', 'Network error occurred');
     } finally {
-      setLoading(false);
       setShowReasonModal(false);
       setPendingOperation(null);
       setBulkReason('');
@@ -316,12 +227,12 @@ const UserCarePage = () => {
     if (!googleSheetsAuth.isLinked) {
       setShowGoogleSheetsModal(true);
     } else {
-      exportToGoogleSheetsWithData();
+      exportToGoogleSheets();
     }
     setShowExportOptions(false);
   };
 
-  const linkGoogleSheetsAccount = async () => {
+  const linkGoogleSheetsAccount = () => {
     // Simulate Google OAuth flow
     const mockAuth = {
       isLinked: true,
@@ -334,70 +245,20 @@ const UserCarePage = () => {
     setShowGoogleSheetsModal(false);
     
     addNotification('success', 'Account Linked', 'Google Sheets account linked successfully');
-    await exportToGoogleSheetsWithData();
+    exportToGoogleSheets();
   };
 
-  const exportToGoogleSheetsWithData = async () => {
-    try {
-      setLoading(true);
-      const selectedUserData = users.filter(user => selectedUsers.includes(user.id));
-      
-      if (selectedUserData.length === 0) {
-        addNotification('error', 'No Data', 'No users selected for export');
-        return;
-      }
-
-      // Prepare structured data for Google Sheets
-      const exportData = {
-        headers: ['ID', 'Name', 'Email', 'Username', 'Total Earnings', 'Status', 'Last Seen', 'Actions', 'Created At', 'Ban Reason'],
-        data: selectedUserData.map(user => [
-          user.id,
-          `${user.firstName} ${user.lastName}`,
-          user.email,
-          user.username,
-          user.totalEarnings,
-          user.isBanned ? 'Banned' : user.isActive ? 'Active' : 'Inactive',
-          formatLastSeen(user.lastSeen),
-          user.actions || 0,
-          new Date(user.createdAt).toLocaleDateString(),
-          user.banReason || 'N/A'
-        ])
-      };
-
-      // Send data to backend for Google Sheets export
-      const token = localStorage.getItem('thorx_team_auth_token');
-      const response = await fetch('/api/team/users/export-google-sheets', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          userIds: selectedUsers,
-          sheetId: googleSheetsAuth.sheetId,
-          exportData
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        
-        // Open Google Sheets with the exported data
-        const sheetUrl = result.sheetUrl || `https://docs.google.com/spreadsheets/d/${googleSheetsAuth.sheetId}/edit`;
-        window.open(sheetUrl, '_blank');
-        
-        addNotification('success', 'Export Successful', `Exported ${selectedUserData.length} users to Google Sheets`);
-        setSelectedUsers([]);
-      } else {
-        const error = await response.json();
-        addNotification('error', 'Export Failed', error.message || 'Failed to export to Google Sheets');
-      }
-    } catch (error) {
-      console.error('Google Sheets export error:', error);
-      addNotification('error', 'Export Error', 'Network error occurred during export');
-    } finally {
-      setLoading(false);
-    }
+  const exportToGoogleSheets = () => {
+    const selectedUserData = users.filter(user => selectedUsers.includes(user.id));
+    
+    // Create Google Sheets URL with data
+    const sheetUrl = `https://docs.google.com/spreadsheets/d/${googleSheetsAuth.sheetId}/edit`;
+    
+    // In a real implementation, you would use Google Sheets API
+    // For now, we'll open the sheet and show success message
+    window.open(sheetUrl, '_blank');
+    
+    addNotification('success', 'Export to Google Sheets', `Exported ${selectedUserData.length} users to Google Sheets`);
   };
 
   const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -464,22 +325,14 @@ const UserCarePage = () => {
   };
 
   const handleUserAction = async (userId: number, action: string) => {
-    setLoading(true);
-    try {
-      if (action === 'ban' || action === 'unban') {
-        setPendingOperation({ operation: action, userIds: [userId] });
-        setShowReasonModal(true);
-      } else if (action === 'export') {
-        setSelectedUsers([userId]);
-        setShowExportOptions(true);
-      }
-    } catch (error) {
-      console.error('User action error:', error);
-      addNotification('error', 'Action Failed', 'Failed to perform user action');
-    } finally {
-      setLoading(false);
-      setShowDropdown(null);
+    if (action === 'ban' || action === 'unban') {
+      setPendingOperation({ operation: action, userIds: [userId] });
+      setShowReasonModal(true);
+    } else if (action === 'export') {
+      setSelectedUsers([userId]);
+      setShowExportOptions(true);
     }
+    setShowDropdown(null);
   };
 
   const handleEditUser = (user: User) => {
@@ -511,6 +364,22 @@ const UserCarePage = () => {
       addNotification('error', 'Update Failed', 'Failed to update user');
     }
   };
+
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = 
+      user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.lastName.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesFilter = 
+      filterType === 'all' || 
+      (filterType === 'active' && user.isActive && !user.isBanned) ||
+      (filterType === 'banned' && user.isBanned) ||
+      (filterType === 'inactive' && !user.isActive);
+    
+    return matchesSearch && matchesFilter;
+  });
 
   const formatLastSeen = (dateString?: string) => {
     if (!dateString) return 'Never';
@@ -598,54 +467,11 @@ const UserCarePage = () => {
                 </div>
               </div>
               <div className="flex items-center space-x-3">
-                {/* View Mode Toggle */}
-                <div className="flex items-center bg-slate-800/50 rounded-lg p-1">
-                  <button
-                    onClick={() => setViewMode('table')}
-                    className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                      viewMode === 'table'
-                        ? 'bg-[#3D619B] text-white shadow-sm'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <Grid className="w-4 h-4" />
-                    <span>Table</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setViewMode('card');
-                      setShowFloatingCard(true);
-                    }}
-                    className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                      viewMode === 'card'
-                        ? 'bg-[#EF4B4C] text-white shadow-sm'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <Layers className="w-4 h-4" />
-                    <span>Cards</span>
-                  </button>
-                </div>
-
-                {/* Floating Card Toggle */}
-                <button
-                  onClick={() => setShowFloatingCard(!showFloatingCard)}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 border ${
-                    showFloatingCard
-                      ? 'bg-[#EF4B4C]/20 text-[#EF4B4C] border-[#EF4B4C]/30'
-                      : 'bg-slate-800/50 text-slate-400 border-slate-700 hover:text-slate-200 hover:border-slate-600'
-                  }`}
-                >
-                  {showFloatingCard ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-                  <span>{showFloatingCard ? 'Hide Quick View' : 'Show Quick View'}</span>
-                </button>
-
                 <button
                   onClick={loadUsers}
-                  disabled={loading}
-                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors"
+                  className="flex items-center space-x-2 px-4 py-2 bg-[#3D619B] hover:bg-[#3D619B]/80 text-white rounded-lg transition-colors"
                 >
-                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                  <RefreshCw className="w-4 h-4" />
                   <span>Refresh</span>
                 </button>
                 <div className="text-right">
@@ -1280,95 +1106,6 @@ const UserCarePage = () => {
                   </button>
                 </div>
               </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Floating Quick View Card */}
-        <AnimatePresence>
-          {showFloatingCard && (
-            <motion.div
-              ref={dragRef}
-              initial={{ opacity: 0, scale: 0.8, x: cardPosition.x, y: cardPosition.y }}
-              animate={{ opacity: 1, scale: 1, x: cardPosition.x, y: cardPosition.y }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ duration: 0.3, type: "spring" }}
-              className="fixed z-50 w-80 bg-[#43506C]/95 backdrop-blur-sm border border-[#3D619B]/30 rounded-xl shadow-2xl"
-              style={{
-                left: cardPosition.x,
-                top: cardPosition.y,
-                cursor: isDragging ? 'grabbing' : 'grab'
-              }}
-            >
-              {/* Drag Handle */}
-              <div
-                onMouseDown={handleMouseDown}
-                className="flex items-center justify-between p-4 border-b border-[#3D619B]/30 cursor-grab active:cursor-grabbing"
-              >
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-[#EF4B4C] rounded-full animate-pulse"></div>
-                  <h4 className="font-semibold text-[#E9E9EB]">Quick View</h4>
-                </div>
-                <button
-                  onClick={() => setShowFloatingCard(false)}
-                  className="p-1 hover:bg-[#43506C]/40 rounded transition-colors"
-                >
-                  <X className="w-4 h-4 text-[#E9E9EB]/60" />
-                </button>
-              </div>
-
-              {/* Stats Content */}
-              <div className="p-4 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-[#E9E9EB]">{floatingCardStats.total}</div>
-                    <div className="text-xs text-[#E9E9EB]/60">Total Users</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-[#3D619B]">{floatingCardStats.selected}</div>
-                    <div className="text-xs text-[#E9E9EB]/60">Selected</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-400">{floatingCardStats.active}</div>
-                    <div className="text-xs text-[#E9E9EB]/60">Active</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-red-400">{floatingCardStats.banned}</div>
-                    <div className="text-xs text-[#E9E9EB]/60">Banned</div>
-                  </div>
-                </div>
-
-                {/* Filter Info */}
-                <div className="pt-3 border-t border-[#3D619B]/30">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-[#E9E9EB]/80">Filtered Results:</span>
-                    <span className="text-sm font-semibold text-[#EF4B4C]">{floatingCardStats.filtered}</span>
-                  </div>
-                </div>
-
-                {/* Quick Actions */}
-                <div className="pt-3 border-t border-[#3D619B]/30">
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => setShowBulkOps(true)}
-                      disabled={selectedUsers.length === 0}
-                      className="flex-1 px-3 py-2 bg-[#EF4B4C] hover:bg-[#EF4B4C]/80 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs font-medium transition-colors"
-                    >
-                      Bulk Ops
-                    </button>
-                    <button
-                      onClick={() => setViewMode(viewMode === 'table' ? 'card' : 'table')}
-                      className="flex-1 px-3 py-2 bg-[#3D619B] hover:bg-[#3D619B]/80 text-white rounded-lg text-xs font-medium transition-colors"
-                    >
-                      {viewMode === 'table' ? 'Card View' : 'Table View'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Cosmic decoration */}
-              <div className="absolute bottom-2 right-2 w-2 h-2 bg-[#3D619B]/40 rounded-full animate-pulse"></div>
-              <div className="absolute bottom-3 right-3 w-1 h-1 bg-[#EF4B4C]/30 rounded-full animate-pulse" style={{ animationDelay: '0.5s' }}></div>
             </motion.div>
           )}
         </AnimatePresence>

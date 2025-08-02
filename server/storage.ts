@@ -375,14 +375,12 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     // Create ban report
-    if (user) {
-      await this.createBanReport({
+    await this.createBanReport({
       userId,
       teamMemberId: bannedBy,
       reason,
       action: 'ban'
-      });
-    }
+    });
 
     return user || undefined;
   }
@@ -400,14 +398,12 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     // Create unban report
-    if (user) {
-      await this.createBanReport({
+    await this.createBanReport({
       userId,
       teamMemberId: unbannedBy,
       reason,
       action: 'unban'
-      });
-    }
+    });
 
     return user || undefined;
   }
@@ -508,8 +504,7 @@ export class DatabaseStorage implements IStorage {
           results.push({ userId, status: 'success' });
         }
       } catch (error) {
-        console.error(`Error banning user ${userId}:`, error);
-        results.push({ userId, status: 'error', error: error instanceof Error ? error.message : 'Unknown error' });
+        results.push({ userId, status: 'error', error: error.message });
       }
     }
 
@@ -545,8 +540,7 @@ export class DatabaseStorage implements IStorage {
           results.push({ userId, status: 'success' });
         }
       } catch (error) {
-        console.error(`Error unbanning user ${userId}:`, error);
-        results.push({ userId, status: 'error', error: error instanceof Error ? error.message : 'Unknown error' });
+        results.push({ userId, status: 'error', error: error.message });
       }
     }
 

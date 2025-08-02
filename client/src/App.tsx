@@ -43,9 +43,7 @@ function App() {
                 <Route path="/" component={LandingPage} />
                 <Route path="/auth" component={AuthPage} />
                 <Route path="/account-status" component={AccountStatusPage} />
-                <Route path="/banned">
-                  <BannedUserPage />
-                </Route>
+                <Route path="/banned" component={BannedUserPage} />
                 <Route path="/login" component={AuthPage} />
                 <Route path="/register" component={AuthPage} />
 
